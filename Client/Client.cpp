@@ -4,10 +4,17 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 
 #include <winsock2.h>
+#include <string>
 
 #pragma comment(lib, "ws2_32.lib")
 
+#define BUFFER_SIZE 1024
+
 using namespace std;
+
+bool isLogged = false;
+
+void commandHelperFunction(string command, SOCKET clientSocket, char* buffer);
 
 int main() {
     // Initialize WinSock
@@ -40,13 +47,67 @@ int main() {
     }
 
     cout << "Connected to Email Server." << endl;
-    cin.get();
+    
+    while (1) {
+        char buffer[BUFFER_SIZE];
+
+        if (isLogged == false) {
+            int iResult = recv(clientSocket, buffer, BUFFER_SIZE, 0);
+
+            if (iResult == SOCKET_ERROR) {
+                cerr << "Receive failed" << WSAGetLastError() << endl;
+            }
+            else {
+                string responseMessage(buffer, iResult);
+                // Server trazi da se korisnik loguje
+                cout << responseMessage << endl;
+
+                string login;
+                getline(cin, login);
+                send(clientSocket, login.c_str(), login.size(), 0);
+
+                int iResult = recv(clientSocket, buffer, BUFFER_SIZE, 0);
+
+                if (iResult == SOCKET_ERROR) {
+                    cerr << "Receive failed" << WSAGetLastError() << endl;
+                }
+                else {
+                    string responseUsername(buffer, iResult);
+                    cout << responseUsername << endl;
+
+                    string username;
+                    getline(cin, username);
+                    send(clientSocket, username.c_str(), username.size(), 0);
 
 
-    // TODO: Implement client commands and interaction with the server
+                    isLogged = true;
+                }
+            }
+        }
+        else {
 
+            string userCommand;
+            getline(cin, userCommand);
+            send(clientSocket, userCommand.c_str(), userCommand.size(), 0);
+
+            commandHelperFunction(userCommand, clientSocket, buffer);
+        }
+
+        
+
+        // TODO: Implement client commands and interaction with the server
+
+
+    }
+    
     // Clean up
     closesocket(clientSocket);
     WSACleanup();
     return 0;
+}
+
+void commandHelperFunction(string command, SOCKET clientSocket, char* buffer) {
+    if (command == "Logout") {
+        cin.get();
+    }
 }

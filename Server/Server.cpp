@@ -1,5 +1,4 @@
 // Server.cpp : This file contains the 'main' function. Program execution begins and ends there.
-//
 
 // EmailServer.cpp
 #include <iostream>
@@ -7,18 +6,26 @@
 
 #pragma comment(lib, "ws2_32.lib")
 
+#define BUFFER_SIZE 1024
+
+using namespace std;
+
+bool isLogged = false;
+
+void proccesReceivedCommand(string command, SOCKET serverSocket, char* buffer);
+
 int main() {
     // Initialize WinSock
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        std::cerr << "Failed to initialize WinSock." << std::endl;
+        cerr << "Failed to initialize WinSock." << endl;
         return 1;
     }
 
     // Create a socket
     SOCKET serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket == INVALID_SOCKET) {
-        std::cerr << "Error creating socket: " << WSAGetLastError() << std::endl;
+        cerr << "Error creating socket: " << WSAGetLastError() << endl;
         WSACleanup();
         return 1;
     }
@@ -31,7 +38,7 @@ int main() {
 
     // Bind the socket
     if (bind(serverSocket, reinterpret_cast<sockaddr*>(&serverAddress), sizeof(serverAddress)) == SOCKET_ERROR) {
-        std::cerr << "Bind failed: " << WSAGetLastError() << std::endl;
+        cerr << "Bind failed: " << WSAGetLastError() << endl;
         closesocket(serverSocket);
         WSACleanup();
         return 1;
@@ -39,28 +46,80 @@ int main() {
 
     // Listen for incoming connections
     if (listen(serverSocket, SOMAXCONN) == SOCKET_ERROR) {
-        std::cerr << "Listen failed: " << WSAGetLastError() << std::endl;
+        cerr << "Listen failed: " << WSAGetLastError() << endl;
         closesocket(serverSocket);
         WSACleanup();
         return 1;
     }
 
-    std::cout << "Email Server listening for incoming connections..." << std::endl;
+    cout << "Email Server listening for incoming connections..." << endl;
 
     // Accept connections and handle client requests
     while (true) {
         SOCKET clientSocket = accept(serverSocket, nullptr, nullptr);
         if (clientSocket == INVALID_SOCKET) {
-            std::cerr << "Accept failed: " << WSAGetLastError() << std::endl;
+            cerr << "Accept failed: " << WSAGetLastError() << endl;
         }
         else {
-            std::cout << "Client connected!" << std::endl;
+            
+            char buffer[BUFFER_SIZE];
 
-            // TODO: Handle client requests and email system logic here
+            if (isLogged == false) {
+                string message = "Please login: ";
+                send(clientSocket, message.c_str(), message.size(), 0);
+
+                int iResult = recv(clientSocket, buffer, BUFFER_SIZE, 0);
+                if (iResult == SOCKET_ERROR) {
+                    cerr << "Receive failed: " << WSAGetLastError() << endl;
+                }
+                else {
+                    string receivedCommand(buffer, iResult);
+                    if (receivedCommand == "Login") {
+                        string message = "Enter username: ";
+                        send(clientSocket, message.c_str(), message.size(), 0);
+
+                        int iResult = recv(clientSocket, buffer, BUFFER_SIZE, 0);
+
+                        if (iResult == SOCKET_ERROR) {
+                            cerr << "Receive failed" << WSAGetLastError() << endl;
+                        }
+                        else {
+                            string responseMessage(buffer, iResult);
+                            //Server dobija username
+                            cout << "Ulogovao se korisnik: " << responseMessage << endl;
+                            isLogged = true;
+                        }
+                    }
+                    else {
+                        string errorMessage = "Error";
+                        send(clientSocket, errorMessage.c_str(), errorMessage.size(), 0);
+                    }
+                }       
+            }
+            else {
+                string message = "Enter command Login/Logout/Send/Check/Stat/Delete/Clean/Receive";
+                send(clientSocket, message.c_str(), message.size(), 0);
+
+                int iResult = recv(clientSocket, buffer, BUFFER_SIZE, 0);
+                if (iResult == SOCKET_ERROR) {
+                    cerr << "Receive failed: " << WSAGetLastError() << endl;
+                }
+                else {
+                    string receivedCommand(buffer, iResult);
+                    cout << "Received command from client: " << receivedCommand << endl;
+
+                    proccesReceivedCommand(receivedCommand, clientSocket, buffer);
+                }
+                
+            }
+
+            
 
             closesocket(clientSocket);
         }
     }
+
+
 
     // Clean up
     closesocket(serverSocket);
@@ -68,4 +127,29 @@ int main() {
     return 0;
 }
 
+void proccesReceivedCommand(string command, SOCKET clientSocket, char* buffer) {
+    if (command == "Logout") {
 
+    }
+    else if (command == "Send") {
+
+    }
+    else if (command == "Check") {
+
+    }
+    else if (command == "Stat") {
+
+    }
+    else if (command == "Delete") {
+
+    }
+    else if (command == "Clean") {
+
+    }
+    else if (command == "Receive") {
+
+    }
+    else {
+        cout << "Uneta nepoznata komanda pokusajte opet" << endl;
+    }
+}
