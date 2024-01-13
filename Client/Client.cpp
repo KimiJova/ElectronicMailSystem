@@ -1,20 +1,52 @@
-// Client.cpp : This file contains the 'main' function. Program execution begins and ends there.
-//
-
+// EmailClient.cpp
 #include <iostream>
 
-int main()
-{
-    std::cout << "Hello World!\n";
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+
+#include <winsock2.h>
+
+#pragma comment(lib, "ws2_32.lib")
+
+using namespace std;
+
+int main() {
+    // Initialize WinSock
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        cout << "Failed to initialize WinSock." << endl;
+        return 1;
+    }
+
+    // Create a socket
+    SOCKET clientSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (clientSocket == INVALID_SOCKET) {
+        cout << "Error creating socket: " << WSAGetLastError() << endl;
+        WSACleanup();
+        return 1;
+    }
+
+    // Set up the server address structure
+    sockaddr_in serverAddress;
+    serverAddress.sin_family = AF_INET;
+    serverAddress.sin_port = htons(27015);  // Example port number
+    serverAddress.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+    // Connect to the server
+    if (connect(clientSocket, reinterpret_cast<sockaddr*>(&serverAddress), sizeof(serverAddress)) == SOCKET_ERROR) {
+        cout << "Connection failed: " << WSAGetLastError() << endl;
+        closesocket(clientSocket);
+        WSACleanup();
+        return 1;
+    }
+
+    cout << "Connected to Email Server." << endl;
+    cin.get();
+
+
+    // TODO: Implement client commands and interaction with the server
+
+    // Clean up
+    closesocket(clientSocket);
+    WSACleanup();
+    return 0;
 }
-
-// Run program: Ctrl + F5 or Debug > Start Without Debugging menu
-// Debug program: F5 or Debug > Start Debugging menu
-
-// Tips for Getting Started: 
-//   1. Use the Solution Explorer window to add/manage files
-//   2. Use the Team Explorer window to connect to source control
-//   3. Use the Output window to see build output and other messages
-//   4. Use the Error List window to view errors
-//   5. Go to Project > Add New Item to create new code files, or Project > Add Existing Item to add existing code files to the project
-//   6. In the future, to open this project again, go to File > Open > Project and select the .sln file
