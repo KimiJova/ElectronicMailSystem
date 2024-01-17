@@ -1,155 +1,92 @@
-// Server.cpp : This file contains the 'main' function. Program execution begins and ends there.
-
-// EmailServer.cpp
+#include <cstdlib>
+#include <cstring>
 #include <iostream>
+#include <string>
 #include <winsock2.h>
 
-#pragma comment(lib, "ws2_32.lib")
+#include "Commands.h"
+#include "Database.h"
 
-#define BUFFER_SIZE 1024
+int main(void)
+{
+    Database Db;
+    Commands Ops;
+    const int CommandSize = 256;
+    char Command[CommandSize];
+    SOCKET ServerId, ClientId;  // Use SOCKET type for Winsock
+    int PortNum = 3333;
+    struct sockaddr_in ServerAddr;
+    int addrLen;
 
-using namespace std;
-
-bool isLogged = false;
-
-void proccesReceivedCommand(string command, SOCKET serverSocket, char* buffer);
-
-int main() {
-    // Initialize WinSock
+    // Initialize Winsock
     WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        cerr << "Failed to initialize WinSock." << endl;
-        return 1;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+    {
+        std::cout << "Failed to initialize Winsock." << std::endl;
+        return EXIT_FAILURE;
     }
 
-    // Create a socket
-    SOCKET serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (serverSocket == INVALID_SOCKET) {
-        cerr << "Error creating socket: " << WSAGetLastError() << endl;
+    // Initialize database.
+    Db.InitDatabase();
+
+    // Establish connection with client.
+    ClientId = socket(AF_INET, SOCK_STREAM, 0);
+    if (ClientId == INVALID_SOCKET)
+    {
+        std::cout << "Error creating the client socket." << std::endl;
         WSACleanup();
-        return 1;
+        return EXIT_FAILURE;
     }
+    std::cout << "Client socket created." << std::endl;
 
-    // Set up the server address structure
-    sockaddr_in serverAddress;
-    serverAddress.sin_family = AF_INET;
-    serverAddress.sin_port = htons(27015);  // Example port number
-    serverAddress.sin_addr.s_addr = INADDR_ANY;
+    ServerAddr.sin_family = AF_INET;
+    ServerAddr.sin_addr.s_addr = INADDR_ANY;
+    ServerAddr.sin_port = htons(PortNum);
 
-    // Bind the socket
-    if (bind(serverSocket, reinterpret_cast<sockaddr*>(&serverAddress), sizeof(serverAddress)) == SOCKET_ERROR) {
-        cerr << "Bind failed: " << WSAGetLastError() << endl;
-        closesocket(serverSocket);
+    addrLen = sizeof(ServerAddr);
+    if (bind(ClientId, reinterpret_cast<struct sockaddr*>(&ServerAddr), addrLen) == SOCKET_ERROR)
+    {
+        std::cout << "Error binding the client socket." << std::endl;
+        closesocket(ClientId);
         WSACleanup();
-        return 1;
+        return EXIT_FAILURE;
     }
+    std::cout << "Waiting for client..." << std::endl;
 
-    // Listen for incoming connections
-    if (listen(serverSocket, SOMAXCONN) == SOCKET_ERROR) {
-        cerr << "Listen failed: " << WSAGetLastError() << endl;
-        closesocket(serverSocket);
+    listen(ClientId, 1);
+    ServerId = accept(ClientId, reinterpret_cast<struct sockaddr*>(&ServerAddr), &addrLen);
+    if (ServerId == INVALID_SOCKET)
+    {
+        std::cout << "Error accepting the client." << std::endl;
+        closesocket(ClientId);
         WSACleanup();
-        return 1;
+        return EXIT_FAILURE;
     }
+    std::cout << "Client connected." << std::endl;
 
-    cout << "Email Server listening for incoming connections..." << endl;
+    Ops.CommandSize = CommandSize;
+    Ops.ServerId = ServerId;
 
-    // Accept connections and handle client requests
-    while (true) {
-        SOCKET clientSocket = accept(serverSocket, nullptr, nullptr);
-        if (clientSocket == INVALID_SOCKET) {
-            cerr << "Accept failed: " << WSAGetLastError() << endl;
+    // Main server loop.
+    while (1)
+    {
+        // Get command from client.
+        addrLen = recv(ServerId, Command, CommandSize, 0);
+        if (addrLen == 0)
+        {
+            std::cout << "Error receiving message." << std::endl;
+            break;
         }
-        else {
-            
-            char buffer[BUFFER_SIZE];
 
-            if (isLogged == false) {
-                string message = "Please login: ";
-                send(clientSocket, message.c_str(), message.size(), 0);
+        if (!strcmp(Command, "quit"))
+            break;
 
-                int iResult = recv(clientSocket, buffer, BUFFER_SIZE, 0);
-                if (iResult == SOCKET_ERROR) {
-                    cerr << "Receive failed: " << WSAGetLastError() << endl;
-                }
-                else {
-                    string receivedCommand(buffer, iResult);
-                    if (receivedCommand == "Login") {
-                        string message = "Enter username: ";
-                        send(clientSocket, message.c_str(), message.size(), 0);
-
-                        int iResult = recv(clientSocket, buffer, BUFFER_SIZE, 0);
-
-                        if (iResult == SOCKET_ERROR) {
-                            cerr << "Receive failed" << WSAGetLastError() << endl;
-                        }
-                        else {
-                            string responseMessage(buffer, iResult);
-                            //Server dobija username
-                            cout << "Ulogovao se korisnik: " << responseMessage << endl;
-                            isLogged = true;
-                        }
-                    }
-                    else {
-                        string errorMessage = "Error";
-                        send(clientSocket, errorMessage.c_str(), errorMessage.size(), 0);
-                    }
-                }       
-            }
-            else {
-                string message = "Enter command Login/Logout/Send/Check/Stat/Delete/Clean/Receive";
-                send(clientSocket, message.c_str(), message.size(), 0);
-
-                int iResult = recv(clientSocket, buffer, BUFFER_SIZE, 0);
-                if (iResult == SOCKET_ERROR) {
-                    cerr << "Receive failed: " << WSAGetLastError() << endl;
-                }
-                else {
-                    string receivedCommand(buffer, iResult);
-                    cout << "Received command from client: " << receivedCommand << endl;
-
-                    proccesReceivedCommand(receivedCommand, clientSocket, buffer);
-                }
-                
-            }
-
-            
-
-            closesocket(clientSocket);
-        }
+        Ops.ParseCommand(Db, std::string(Command));
     }
 
-
-
-    // Clean up
-    closesocket(serverSocket);
+    closesocket(ServerId);
+    closesocket(ClientId);
     WSACleanup();
+
     return 0;
-}
-
-void proccesReceivedCommand(string command, SOCKET clientSocket, char* buffer) {
-    if (command == "Logout") {
-
-    }
-    else if (command == "Send") {
-
-    }
-    else if (command == "Check") {
-
-    }
-    else if (command == "Stat") {
-
-    }
-    else if (command == "Delete") {
-
-    }
-    else if (command == "Clean") {
-
-    }
-    else if (command == "Receive") {
-
-    }
-    else {
-        cout << "Uneta nepoznata komanda pokusajte opet" << endl;
-    }
 }

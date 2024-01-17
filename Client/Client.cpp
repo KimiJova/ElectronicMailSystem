@@ -1,113 +1,86 @@
-// EmailClient.cpp
 #include <iostream>
-
+#define _CRT_SECURE_NO_WARNINGS
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
-
-#include <winsock2.h>
+#include <string.h>
 #include <string>
+#include <winsock2.h>
 
 #pragma comment(lib, "ws2_32.lib")
 
-#define BUFFER_SIZE 1024
-
-using namespace std;
-
-bool isLogged = false;
-
-void commandHelperFunction(string command, SOCKET clientSocket, char* buffer);
-
-int main() {
-    // Initialize WinSock
+int main(void)
+{
     WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        cout << "Failed to initialize WinSock." << endl;
-        return 1;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+    {
+        std::cerr << "WSAStartup failed" << std::endl;
+        return EXIT_FAILURE;
     }
 
-    // Create a socket
-    SOCKET clientSocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (clientSocket == INVALID_SOCKET) {
-        cout << "Error creating socket: " << WSAGetLastError() << endl;
+    int ReturnCheck;
+    SOCKET ClientId; // Use SOCKET type for Winsock
+    int PortNum = 3333;
+    const int MessageSize = 256;
+    char Message[MessageSize];
+    std::string IP = "127.0.0.1";
+    sockaddr_in ServerAddr;
+
+    // Establish connection with server.
+    ClientId = socket(AF_INET, SOCK_STREAM, 0);
+    if (ClientId == INVALID_SOCKET)
+    {
+        std::cout << "Error creating the client socket." << std::endl;
         WSACleanup();
-        return 1;
+        return EXIT_FAILURE;
     }
+    std::cout << "Client socket created." << std::endl;
 
-    // Set up the server address structure
-    sockaddr_in serverAddress;
-    serverAddress.sin_family = AF_INET;
-    serverAddress.sin_port = htons(27015);  // Example port number
-    serverAddress.sin_addr.s_addr = inet_addr("127.0.0.1");
+    ServerAddr.sin_family = AF_INET;
+    ServerAddr.sin_port = htons(PortNum);
+    ServerAddr.sin_addr.s_addr = inet_addr(IP.c_str());
 
-    // Connect to the server
-    if (connect(clientSocket, reinterpret_cast<sockaddr*>(&serverAddress), sizeof(serverAddress)) == SOCKET_ERROR) {
-        cout << "Connection failed: " << WSAGetLastError() << endl;
-        closesocket(clientSocket);
+    ReturnCheck = connect(ClientId, reinterpret_cast<struct sockaddr*>(&ServerAddr), sizeof(ServerAddr));
+    if (ReturnCheck < 0)
+    {
+        std::cout << "Error connecting to the server." << std::endl;
+        closesocket(ClientId);
         WSACleanup();
-        return 1;
+        return EXIT_FAILURE;
     }
+    std::cout << "Connected to server." << std::endl;
 
-    cout << "Connected to Email Server." << endl;
-    
-    while (1) {
-        char buffer[BUFFER_SIZE];
+    // Main loop.
+    while (1)
+    {
+        std::cout << "Please enter a command: ";
+        std::string Temp;
+        getline(std::cin, Temp);
+        strncpy_s(Message, Temp.c_str(), _TRUNCATE);
 
-        if (isLogged == false) {
-            int iResult = recv(clientSocket, buffer, BUFFER_SIZE, 0);
-
-            if (iResult == SOCKET_ERROR) {
-                cerr << "Receive failed" << WSAGetLastError() << endl;
-            }
-            else {
-                string responseMessage(buffer, iResult);
-                // Server trazi da se korisnik loguje
-                cout << responseMessage << endl;
-
-                string login;
-                getline(cin, login);
-                send(clientSocket, login.c_str(), login.size(), 0);
-
-                int iResult = recv(clientSocket, buffer, BUFFER_SIZE, 0);
-
-                if (iResult == SOCKET_ERROR) {
-                    cerr << "Receive failed" << WSAGetLastError() << endl;
-                }
-                else {
-                    string responseUsername(buffer, iResult);
-                    cout << responseUsername << endl;
-
-                    string username;
-                    getline(cin, username);
-                    send(clientSocket, username.c_str(), username.size(), 0);
-
-
-                    isLogged = true;
-                }
-            }
-        }
-        else {
-
-            string userCommand;
-            getline(cin, userCommand);
-            send(clientSocket, userCommand.c_str(), userCommand.size(), 0);
-
-            commandHelperFunction(userCommand, clientSocket, buffer);
+        int bytesSent = send(ClientId, Message, MessageSize, 0);
+        if (bytesSent == SOCKET_ERROR)
+        {
+            std::cerr << "Error sending data: " << WSAGetLastError() << std::endl;
+            break; // or handle the error as needed
         }
 
-        
+        if (!strcmp(Message, "quit"))
+            break;
 
-        // TODO: Implement client commands and interaction with the server
+        // Handle connection closure by the server.
+        int bytesReceived = recv(ClientId, Message, MessageSize, 0);
+        if (bytesReceived == 0)
+        {
+            std::cout << "Connection closed by the server." << std::endl;
+            break;
+        }
 
+        Message[bytesReceived] = '\0';
 
+        std::cout << Message << std::endl;
     }
-    
-    // Clean up
-    closesocket(clientSocket);
+
+    closesocket(ClientId);
     WSACleanup();
-    return 0;
-}
 
-void commandHelperFunction(string command, SOCKET clientSocket, char* buffer) {
-    if (command == "Logout") {
-        cin.get();
-    }
+    return 0;
 }

@@ -1,0 +1,5 @@
+﻿  Commands.cpp
+C:\Users\Sasa\Desktop\ProjekatMRKiRM\Projekat\Server\Commands.cpp(250,20): warning C4018: '<': signed/unsigned mismatch
+  Database.cpp
+  Generating Code...
+  Server.vcxproj -> C:\Users\Sasa\Desktop\ProjekatMRKiRM\Projekat\Debug\Server.exe
